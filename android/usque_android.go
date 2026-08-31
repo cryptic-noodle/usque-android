@@ -67,7 +67,12 @@ func (b *ringLogBuffer) Write(p []byte) (n int, err error) {
 	b.mu.Unlock()
 
 	if listener != nil {
-		listener.OnLogMessage(msg)
+		go func(l LogListener, m string) {
+			defer func() {
+				recover()
+			}()
+			l.OnLogMessage(m)
+		}(listener, msg)
 	}
 
 	// Also write to stderr
@@ -267,6 +272,25 @@ type AndroidTunDevice struct {
 	file     *os.File
 	mtu      int
 	outputFn PacketFlow
+	closed   atomicBool
+}
+
+// sync.atomicBool helper
+type atomicBool struct {
+	sync.Mutex
+	v bool
+}
+
+func (a *atomicBool) Set(v bool) {
+	a.Lock()
+	a.v = v
+	a.Unlock()
+}
+
+func (a *atomicBool) Get() bool {
+	a.Lock()
+	defer a.Unlock()
+	return a.v
 }
 
 // newAndroidTunDevice creates a new Android TUN device wrapper
@@ -285,18 +309,33 @@ func newAndroidTunDevice(fd int, mtu int, packetFlow PacketFlow) (*AndroidTunDev
 }
 
 func (d *AndroidTunDevice) ReadPacket(buf []byte) (int, error) {
+	if d.closed.Get() || d.file == nil {
+		return 0, io.EOF
+	}
 	n, err := d.file.Read(buf)
 	if err != nil {
+		if d.closed.Get() {
+			return 0, io.EOF
+		}
 		return 0, err
 	}
 	return n, nil
 }
 
 func (d *AndroidTunDevice) WritePacket(pkt []byte) error {
-	// Direct OS file descriptor write (Zero JNI bridge overhead, eliminates memory copying and GC pauses)
+	if d.closed.Get() {
+		return nil
+	}
+	// Direct OS file descriptor write
 	if d.file != nil {
 		_, err := d.file.Write(pkt)
-		return err
+		if err != nil {
+			if d.closed.Get() {
+				return nil
+			}
+			return err
+		}
+		return nil
 	}
 	if d.outputFn != nil {
 		d.outputFn.WritePacket(pkt)
@@ -305,8 +344,11 @@ func (d *AndroidTunDevice) WritePacket(pkt []byte) error {
 }
 
 func (d *AndroidTunDevice) Close() error {
+	d.closed.Set(true)
 	if d.file != nil {
-		return d.file.Close()
+		f := d.file
+		d.file = nil
+		return f.Close()
 	}
 	return nil
 }

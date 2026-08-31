@@ -230,22 +230,31 @@ class MainActivity : Activity() {
         val btnCopy = dialogView.findViewById<Button>(R.id.btn_copy_logs)
         val btnClear = dialogView.findViewById<Button>(R.id.btn_clear_logs)
 
+        var isRefreshing = false
         fun refreshLogs() {
-            val logs = Usqueandroid.getLogs()
-            logsTextView.text = if (logs.isNotEmpty()) logs else "No logs yet..."
-            logsScrollView.post {
-                logsScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            if (isFinishing || isDestroyed) return
+            try {
+                val logs = Usqueandroid.getLogs()
+                logsTextView.text = if (logs.isNotEmpty()) logs else "No logs yet..."
+                logsScrollView.post {
+                    logsScrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                }
+            } catch (e: Exception) {
+                // Ignore any concurrent access error
             }
         }
 
         refreshLogs()
 
-        // Attach live log listener
+        // Attach live log listener (debounced to avoid UI thread saturation)
         val logListener = object : LogListener {
             override fun onLogMessage(message: String?) {
-                mainHandler.post {
+                if (isRefreshing || isFinishing || isDestroyed) return
+                isRefreshing = true
+                mainHandler.postDelayed({
+                    isRefreshing = false
                     refreshLogs()
-                }
+                }, 100)
             }
         }
         Usqueandroid.setLogListener(logListener)
