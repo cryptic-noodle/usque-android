@@ -78,18 +78,23 @@ jobs:
 
       - name: Prepare Release Artifacts & Notes
         id: prepare_artifacts
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag_name }}
+          INPUT_TITLE: ${{ github.event.inputs.release_title }}
+          INPUT_NOTES: ${{ github.event.inputs.release_notes }}
+          REPO: ${{ github.repository }}
         run: |
           # Generate version tag if not provided
-          if [ -z "${{ github.event.inputs.tag_name }}" ]; then
+          if [ -z "$INPUT_TAG" ]; then
             TAG="v$(date +'%Y.%m.%d-%H%M')"
           else
-            TAG="${{ github.event.inputs.tag_name }}"
+            TAG="$INPUT_TAG"
           fi
           
-          if [ -z "${{ github.event.inputs.release_title }}" ]; then
+          if [ -z "$INPUT_TITLE" ]; then
             TITLE="Usque Android $TAG"
           else
-            TITLE="${{ github.event.inputs.release_title }}"
+            TITLE="$INPUT_TITLE"
           fi
 
           mkdir -p release-artifacts
@@ -100,30 +105,26 @@ jobs:
 
           # Prepare dynamic release notes body
           NOTES_FILE="release-notes.md"
-          echo "## 🚀 Usque Android Release (${TAG})" > $NOTES_FILE
-          echo "" >> $NOTES_FILE
-
-          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
-          if [ -n "$CUSTOM_NOTES" ]; then
-            echo "### 📝 What's New:" >> $NOTES_FILE
-            echo "$CUSTOM_NOTES" >> $NOTES_FILE
-            echo "" >> $NOTES_FILE
-          fi
-
-          cat << 'EOF' >> $NOTES_FILE
-### ✨ Key Features:
-- ⚡ **Zero-JNI Kernel Packet Streaming** (`/dev/tun` direct I/O for speed & battery efficiency)
-- 🔒 **Cloudflare WARP / MASQUE protocol** with PMTU Discovery
-- 🌐 **HTTP/2 mode** (TCP transport option) & **QUIC (HTTP/3)**
-- 🛡️ **Customizable DNS** (Defaults to 1.1.1.1, supports AdGuard/custom resolvers)
-- ⚙️ **Custom SNI & Endpoints** (Censorship circumvention)
-- 📜 **Live In-App Log Viewer** with adjustable log levels
-- 🔔 **Ongoing Android Notification** with 1-tap **"Disconnect"** button
-EOF
-
-          echo "" >> $NOTES_FILE
-          echo "### 📦 Downloads:" >> $NOTES_FILE
-          echo "- [\`usque-android-${TAG}.apk\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/usque-android-${TAG}.apk)" >> $NOTES_FILE
+          {
+            echo "## 🚀 Usque Android Release (${TAG})"
+            echo ""
+            if [ -n "$INPUT_NOTES" ]; then
+              echo "### 📝 What's New:"
+              echo "$INPUT_NOTES"
+              echo ""
+            fi
+            echo "### ✨ Key Features:"
+            echo "- ⚡ **Zero-JNI Kernel Packet Streaming** (\`/dev/tun\` direct I/O for speed & battery efficiency)"
+            echo "- 🔒 **Cloudflare WARP / MASQUE protocol** with PMTU Discovery"
+            echo "- 🌐 **HTTP/2 mode** (TCP transport option) & **QUIC (HTTP/3)**"
+            echo "- 🛡️ **Customizable DNS** (Defaults to 1.1.1.1, supports AdGuard/custom resolvers)"
+            echo "- ⚙️ **Custom SNI & Endpoints** (Censorship circumvention)"
+            echo "- 📜 **Live In-App Log Viewer** with adjustable log levels"
+            echo "- 🔔 **Ongoing Android Notification** with 1-tap **\"Disconnect\"** button"
+            echo ""
+            echo "### 📦 Downloads:"
+            echo "- [\`usque-android-${TAG}.apk\`](https://github.com/${REPO}/releases/download/${TAG}/usque-android-${TAG}.apk)"
+          } > "$NOTES_FILE"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
