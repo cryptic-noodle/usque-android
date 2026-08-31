@@ -23,6 +23,7 @@ class MainActivity : Activity() {
         private const val PREFS_NAME = "UsqueVpnPrefs"
         private const val KEY_SNI = "sni"
         private const val KEY_ENDPOINT = "endpoint"
+        private const val KEY_DNS = "dns"
         private const val KEY_HTTP2 = "http2"
         private const val KEY_KEEPALIVE = "keepalive"
         private const val KEY_MTU = "mtu"
@@ -41,6 +42,7 @@ class MainActivity : Activity() {
     private lateinit var modeText: TextView
     private lateinit var sniText: TextView
     private lateinit var endpointText: TextView
+    private lateinit var dnsText: TextView
     private lateinit var tuningText: TextView
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -59,6 +61,7 @@ class MainActivity : Activity() {
         modeText = findViewById(R.id.mode_text)
         sniText = findViewById(R.id.sni_text)
         endpointText = findViewById(R.id.endpoint_text)
+        dnsText = findViewById(R.id.dns_text)
         tuningText = findViewById(R.id.tuning_text)
 
         // Load saved settings into Go library
@@ -95,6 +98,9 @@ class MainActivity : Activity() {
         val savedEndpoint = prefs.getString(KEY_ENDPOINT, "") ?: ""
         Usqueandroid.setEndpoint(savedEndpoint)
 
+        val savedDns = prefs.getString(KEY_DNS, "1.1.1.1, 1.0.0.1") ?: "1.1.1.1, 1.0.0.1"
+        Usqueandroid.setDNS(savedDns)
+
         val savedHttp2 = prefs.getBoolean(KEY_HTTP2, false)
         Usqueandroid.setHTTP2(savedHttp2)
 
@@ -114,6 +120,7 @@ class MainActivity : Activity() {
     private fun saveSettings(
         sni: String,
         endpoint: String,
+        dns: String,
         http2: Boolean,
         keepalive: Int,
         mtu: Int,
@@ -123,6 +130,7 @@ class MainActivity : Activity() {
         prefs.edit()
             .putString(KEY_SNI, sni)
             .putString(KEY_ENDPOINT, endpoint)
+            .putString(KEY_DNS, dns)
             .putBoolean(KEY_HTTP2, http2)
             .putInt(KEY_KEEPALIVE, keepalive)
             .putInt(KEY_MTU, mtu)
@@ -132,6 +140,7 @@ class MainActivity : Activity() {
 
         Usqueandroid.setSNI(sni)
         Usqueandroid.setEndpoint(endpoint)
+        Usqueandroid.setDNS(dns)
         Usqueandroid.setHTTP2(http2)
         Usqueandroid.setKeepalivePeriod(keepalive.toLong())
         Usqueandroid.setMTU(mtu.toLong())
@@ -145,6 +154,7 @@ class MainActivity : Activity() {
         val http2CheckBox = dialogView.findViewById<CheckBox>(R.id.http2_checkbox)
         val sniInput = dialogView.findViewById<EditText>(R.id.sni_input)
         val endpointInput = dialogView.findViewById<EditText>(R.id.endpoint_input)
+        val dnsInput = dialogView.findViewById<EditText>(R.id.dns_input)
         val keepaliveInput = dialogView.findViewById<EditText>(R.id.keepalive_input)
         val mtuInput = dialogView.findViewById<EditText>(R.id.mtu_input)
         val alwaysReconnectCheckBox = dialogView.findViewById<CheckBox>(R.id.always_reconnect_checkbox)
@@ -154,18 +164,15 @@ class MainActivity : Activity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, LOG_LEVEL_NAMES)
         logLevelSpinner.adapter = adapter
 
-        val configPath = "${filesDir.absolutePath}/config.json"
-
         // Populate current values
         http2CheckBox.isChecked = prefs.getBoolean(KEY_HTTP2, Usqueandroid.getHTTP2())
         sniInput.setText(prefs.getString(KEY_SNI, Usqueandroid.getSNI()))
 
         val currentEndpoint = prefs.getString(KEY_ENDPOINT, "") ?: ""
-        if (currentEndpoint.isNotEmpty()) {
-            endpointInput.setText(currentEndpoint)
-        } else {
-            endpointInput.setText("")
-        }
+        endpointInput.setText(currentEndpoint)
+
+        val currentDns = prefs.getString(KEY_DNS, Usqueandroid.getDNS()) ?: "1.1.1.1, 1.0.0.1"
+        dnsInput.setText(currentDns)
 
         keepaliveInput.setText(prefs.getInt(KEY_KEEPALIVE, Usqueandroid.getKeepalivePeriod().toInt()).toString())
         mtuInput.setText(prefs.getInt(KEY_MTU, Usqueandroid.getMTU().toInt()).toString())
@@ -178,21 +185,22 @@ class MainActivity : Activity() {
             .setTitle("Connection & Engine Settings")
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
-                val sni = sniInput.text.toString().trim()
+                val sni = sniInput.text.toString().trim().ifEmpty { "api.cloudflare.com" }
                 val endpoint = endpointInput.text.toString().trim()
+                val dns = dnsInput.text.toString().trim().ifEmpty { "1.1.1.1, 1.0.0.1" }
                 val http2 = http2CheckBox.isChecked
                 val keepalive = keepaliveInput.text.toString().toIntOrNull() ?: 30
                 val mtu = mtuInput.text.toString().toIntOrNull() ?: 1280
                 val alwaysReconnect = alwaysReconnectCheckBox.isChecked
                 val logLevel = logLevelSpinner.selectedItemPosition
 
-                saveSettings(sni, endpoint, http2, keepalive, mtu, alwaysReconnect, logLevel)
+                saveSettings(sni, endpoint, dns, http2, keepalive, mtu, alwaysReconnect, logLevel)
                 Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
                 updateUI()
             }
             .setNegativeButton("Cancel", null)
             .setNeutralButton("Reset") { _, _ ->
-                saveSettings("www.visa.cn", "", false, 30, 1280, true, 1)
+                saveSettings("api.cloudflare.com", "", "1.1.1.1, 1.0.0.1", false, 30, 1280, true, 1)
                 Usqueandroid.resetConnectionOptions()
                 Toast.makeText(this, "Settings reset to defaults", Toast.LENGTH_SHORT).show()
                 updateUI()
@@ -335,6 +343,10 @@ class MainActivity : Activity() {
             Usqueandroid.getDefaultEndpoint(configPath)
         }
         endpointText.text = "Endpoint: $displayEndpoint"
+
+        // DNS
+        val currentDns = prefs.getString(KEY_DNS, Usqueandroid.getDNS()) ?: "1.1.1.1, 1.0.0.1"
+        dnsText.text = "DNS: $currentDns"
 
         // Tuning parameters
         val keepalive = prefs.getInt(KEY_KEEPALIVE, Usqueandroid.getKeepalivePeriod().toInt())

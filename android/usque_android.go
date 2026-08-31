@@ -183,6 +183,7 @@ var state = &tunnelState{}
 var (
 	customSNI            = "api.cloudflare.com" // Default SNI
 	customEndpoint       = ""                   // Custom endpoint with port, e.g. "162.159.198.2:443" or "[2606:4700:103::]:1701"
+	customDNS            = "1.1.1.1, 1.0.0.1"   // Custom DNS servers (default: 1.1.1.1, 1.0.0.1)
 	customUseHTTP2       = false                // HTTP/2 mode (default false = HTTP/3 / QUIC)
 	customKeepaliveSec   = 30                   // Keepalive period in seconds (default 30)
 	customMTU            = 1280                 // MTU size (default 1280)
@@ -647,10 +648,22 @@ func GetDefaultEndpoint(configPath string) string {
 	return "162.159.198.1:443"
 }
 
+// SetDNS sets custom DNS server addresses (comma or space separated, e.g. "1.1.1.1, 1.0.0.1" or "8.8.8.8, 8.8.4.4")
+func SetDNS(dns string) {
+	customDNS = strings.TrimSpace(dns)
+	log.Printf("Custom DNS set to: %s", customDNS)
+}
+
+// GetDNS returns current custom DNS setting
+func GetDNS() string {
+	return customDNS
+}
+
 // ResetConnectionOptions resets all connection options to defaults
 func ResetConnectionOptions() {
 	customSNI = "api.cloudflare.com"
 	customEndpoint = ""
+	customDNS = "1.1.1.1, 1.0.0.1"
 	customUseHTTP2 = false
 	customKeepaliveSec = 30
 	customMTU = 1280

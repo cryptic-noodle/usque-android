@@ -171,12 +171,24 @@ class UsqueVpnService : VpnService() {
                 }
             }
 
-            // Add DNS servers (both IPv4 and IPv6)
-            builder.addDnsServer("1.1.1.1")
-            builder.addDnsServer("1.0.0.1")
-            // IPv6 DNS
-            builder.addDnsServer("2606:4700:4700::1111")
-            builder.addDnsServer("2606:4700:4700::1001")
+            // Add DNS servers (custom or default 1.1.1.1, 1.0.0.1)
+            val customDnsStr = Usqueandroid.getDNS().trim()
+            if (customDnsStr.isNotEmpty()) {
+                val dnsList = customDnsStr.split(",", " ", ";").map { it.trim() }.filter { it.isNotEmpty() }
+                for (dns in dnsList) {
+                    try {
+                        builder.addDnsServer(dns)
+                        Log.i(TAG, "Configured custom DNS server: $dns")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to add DNS server '$dns': ${e.message}")
+                    }
+                }
+            } else {
+                builder.addDnsServer("1.1.1.1")
+                builder.addDnsServer("1.0.0.1")
+                builder.addDnsServer("2606:4700:4700::1111")
+                builder.addDnsServer("2606:4700:4700::1001")
+            }
 
             // Exclude the Cloudflare endpoint from VPN routing
             // This is critical: the QUIC / HTTP/2 connection to Cloudflare must NOT go through the VPN
