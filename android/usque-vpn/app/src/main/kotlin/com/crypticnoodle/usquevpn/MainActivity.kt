@@ -1,5 +1,6 @@
 package com.crypticnoodle.usquevpn
 
+import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
@@ -7,7 +8,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +23,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val VPN_REQUEST_CODE = 1001
+        private const val NOTIFICATION_PERMISSION_CODE = 1002
         private const val PREFS_NAME = "UsqueVpnPrefs"
         private const val KEY_SNI = "sni"
         private const val KEY_ENDPOINT = "endpoint"
@@ -67,6 +71,9 @@ class MainActivity : Activity() {
         // Load saved settings into Go library
         loadSavedSettings()
 
+        // Request Notification permission on Android 13+ (API 33+)
+        requestNotificationPermissionIfNeeded()
+
         connectButton.setOnClickListener {
             if (UsqueVpnService.isRunning) {
                 stopVpn()
@@ -84,6 +91,14 @@ class MainActivity : Activity() {
         }
 
         updateUI()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_CODE)
+            }
+        }
     }
 
     override fun onResume() {
