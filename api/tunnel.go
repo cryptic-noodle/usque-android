@@ -176,6 +176,10 @@ type MaintainTunnelConfig struct {
 	// OnDisconnect is a path to an executable run after every tunnel loss.
 	// It is exec'd directly (no shell, no args) and runs fire-and-forget.
 	OnDisconnect string
+	// OnConnectedFn is an optional Go callback invoked after successful connection.
+	OnConnectedFn func()
+	// OnDisconnectedFn is an optional Go callback invoked when connection is lost.
+	OnDisconnectedFn func(reason string)
 	// HookEnv is a set of USQUE_* environment variables layered on top of the
 	// parent process env for OnConnect / OnDisconnect invocations. USQUE_EVENT
 	// and USQUE_ENDPOINT are set by MaintainTunnel itself.
@@ -295,6 +299,10 @@ func MaintainTunnel(ctx context.Context, cfg MaintainTunnelConfig) {
 
 		log.Println("Connected to MASQUE server")
 
+		if cfg.OnConnectedFn != nil {
+			go cfg.OnConnectedFn()
+		}
+
 		if cfg.OnConnect != "" {
 			env := cloneHookEnv(cfg.HookEnv)
 			env["USQUE_EVENT"] = "connect"
@@ -321,7 +329,9 @@ func MaintainTunnel(ctx context.Context, cfg MaintainTunnelConfig) {
 				readMu.Unlock()
 				if err != nil {
 					packetBufferPool.Put(buf)
-					errChan <- fmt.Errorf("failed to read from TUN device: %w", err)
+					if pumpCtx.Err() == nil && ctx.Err() == nil {
+						errChan <- fmt.Errorf("failed to read from TUN device: %w", err)
+					}
 					return
 				}
 				if pumpCtx.Err() != nil {
@@ -369,14 +379,22 @@ func MaintainTunnel(ctx context.Context, cfg MaintainTunnelConfig) {
 					continue
 				}
 				if err := cfg.Device.WritePacket(packet); err != nil {
-					errChan <- fmt.Errorf("failed to write to TUN device: %w", err)
+					if pumpCtx.Err() == nil && ctx.Err() == nil {
+						errChan <- fmt.Errorf("failed to write to TUN device: %w", err)
+					}
 					return
 				}
 			}
 		}()
 
 		err = <-errChan
-		log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
+		if ctx.Err() == nil {
+			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
+		}
+
+		if cfg.OnDisconnectedFn != nil {
+			go cfg.OnDisconnectedFn(fmt.Sprintf("%v", err))
+		}
 
 		if cfg.OnDisconnect != "" {
 			env := cloneHookEnv(cfg.HookEnv)

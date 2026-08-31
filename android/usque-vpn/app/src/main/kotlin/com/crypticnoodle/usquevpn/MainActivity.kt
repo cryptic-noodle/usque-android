@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -359,15 +361,46 @@ class MainActivity : Activity() {
 
     /**
      * Lightweight one-time connectivity check after connecting.
-     * Uses Cloudflare's /cdn-cgi/trace endpoint through the tunnel (zero battery overhead).
+     * Waits 2 seconds for tunnel routes to settle.
+     * Only tests and warns if underlying Wi-Fi/Cellular has connectivity but the tunnel does not.
      */
     private fun performPostConnectionCheck() {
         Thread {
             try {
+                // Allow tunnel routes and handshake to fully settle
+                Thread.sleep(2000)
+
+                if (!UsqueVpnService.isRunning) return@Thread
+
+                // Check if device actually has an underlying physical network (Wi-Fi or Cellular)
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                var hasUnderlyingNetwork = false
+
+                if (cm != null) {
+                    val allNetworks = cm.allNetworks
+                    for (network in allNetworks) {
+                        val caps = cm.getNetworkCapabilities(network) ?: continue
+                        // Check for physical transport (Cellular or Wi-Fi or Ethernet), excluding VPN itself
+                        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                            (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
+                            hasUnderlyingNetwork = true
+                            break
+                        }
+                    }
+                }
+
+                // If device has no underlying network at all, don't show the UDP/QUIC blocked tip
+                if (!hasUnderlyingNetwork) {
+                    return@Thread
+                }
+
+                // Test connection through the tunnel
                 val url = java.net.URL("http://1.1.1.1/cdn-cgi/trace")
                 val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 3000
-                conn.readTimeout = 3000
+                conn.connectTimeout = 3500
+                conn.readTimeout = 3500
                 conn.instanceFollowRedirects = false
                 conn.requestMethod = "GET"
                 
@@ -378,8 +411,9 @@ class MainActivity : Activity() {
                     showConnectivityWarning()
                 }
             } catch (e: Exception) {
-                // If ping fails while in QUIC mode, warn user to switch to HTTP/2
-                showConnectivityWarning()
+                if (UsqueVpnService.isRunning) {
+                    showConnectivityWarning()
+                }
             }
         }.start()
     }

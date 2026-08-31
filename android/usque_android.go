@@ -476,6 +476,16 @@ func StartTunnel(configPath string, tunFd int, mtu int, packetFlow PacketFlow, c
 			ReconnectDelay:    1 * time.Second,
 			AlwaysReconnect:   customAlwaysReconnect,
 			UseHTTP2:          customUseHTTP2,
+			OnConnectedFn: func() {
+				if callback != nil {
+					callback.OnConnected()
+				}
+			},
+			OnDisconnectedFn: func(reason string) {
+				if callback != nil {
+					callback.OnDisconnected(reason)
+				}
+			},
 		})
 
 		// Tunnel exited
@@ -491,15 +501,7 @@ func StartTunnel(configPath string, tunFd int, mtu int, packetFlow PacketFlow, c
 		}
 	}()
 
-	// Signal connected
-	if callback != nil {
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			callback.OnConnected()
-		}()
-	}
-
-	log.Println("Tunnel started successfully")
+	log.Println("Tunnel maintenance started")
 	return ""
 }
 

@@ -236,11 +236,6 @@ class UsqueVpnService : VpnService() {
 
             Log.i(TAG, "VPN interface established with fd=$fd, MTU=$effectiveMtu")
 
-            isRunning = true
-
-            // Update foreground notification status
-            updateNotification("Connected & Encrypted via Cloudflare WARP")
-
             // Create packet flow for writing packets back to TUN
             val packetFlow = object : PacketFlow {
                 override fun writePacket(data: ByteArray?) {
@@ -258,12 +253,14 @@ class UsqueVpnService : VpnService() {
             val callback = object : VpnStateCallback {
                 override fun onConnected() {
                     Log.i(TAG, "MASQUE tunnel connected to Cloudflare!")
+                    isRunning = true
                     updateNotification("Connected & Encrypted via Cloudflare WARP")
                     notifyState(true)
                 }
 
                 override fun onDisconnected(reason: String?) {
                     Log.w(TAG, "MASQUE tunnel disconnected: $reason")
+                    isRunning = false
                     notifyState(false)
                     // If the tunnel stopped and is not running, cleanup
                     if (!Usqueandroid.isRunning()) {
@@ -284,8 +281,7 @@ class UsqueVpnService : VpnService() {
                 return
             }
 
-            Log.i(TAG, "VPN Service started successfully!")
-            notifyState(true)
+            Log.i(TAG, "VPN Service setup complete, awaiting MASQUE handshake...")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create VPN interface", e)
