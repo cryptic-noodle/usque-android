@@ -1,0 +1,126 @@
+name: Build and Release Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v1.0.4)'
+        required: false
+        default: ''
+      release_title:
+        description: 'Release Title'
+        required: false
+        default: ''
+      is_prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK & Build Tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+
+      - name: Install gomobile & gobind
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Build Go AAR Library
+        run: |
+          export ANDROID_HOME=$ANDROID_HOME
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+          cd android
+          gomobile bind -v -target=android/arm64,android/arm -androidapi 24 -ldflags="-s -w" -o usque.aar github.com/Diniboy1123/usque/android
+          mkdir -p usque-vpn/app/libs
+          cp usque.aar usque-vpn/app/libs/
+
+      - name: Build Android APK with Gradle
+        run: |
+          cd android/usque-vpn
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Prepare Release Artifacts
+        id: prepare_artifacts
+        run: |
+          # Generate version tag if not provided
+          if [ -z "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="v$(date +'%Y.%m.%d-%H%M')"
+          else
+            TAG="${{ github.event.inputs.tag_name }}"
+          fi
+          
+          if [ -z "${{ github.event.inputs.release_title }}" ]; then
+            TITLE="Usque Android $TAG"
+          else
+            TITLE="${{ github.event.inputs.release_title }}"
+          fi
+
+          mkdir -p release-artifacts
+          cp android/usque-vpn/app/build/outputs/apk/debug/app-debug.apk release-artifacts/usque-android-${TAG}.apk
+          
+          echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_title=${TITLE}" >> $GITHUB_OUTPUT
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: usque-android-apk
+          path: release-artifacts/*.apk
+
+      - name: Create GitHub Release & Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prepare_artifacts.outputs.tag_name }}
+          name: ${{ steps.prepare_artifacts.outputs.release_title }}
+          body: |
+            ## 🚀 Usque Android Release (${{ steps.prepare_artifacts.outputs.tag_name }})
+            
+            ### Included Features:
+            - **Cloudflare WARP / MASQUE protocol**
+            - **HTTP/2 mode** (TCP transport option)
+            - **Live In-App Log Viewer** (`📜 Logs` button)
+            - **Configurable Log Levels** (DEBUG, INFO, WARN, ERROR)
+            - **Custom SNI & Endpoints**
+            - **Customizable MTU (`-m`) & Keepalive Period (`-k`)**
+            - **Always Reconnect** support for stable VPN connections
+            
+            ### Downloads:
+            - [`usque-android-${{ steps.prepare_artifacts.outputs.tag_name }}.apk`](https://github.com/${{ github.repository }}/releases/download/${{ steps.prepare_artifacts.outputs.tag_name }}/usque-android-${{ steps.prepare_artifacts.outputs.tag_name }}.apk)
+          files: release-artifacts/*.apk
+          prerelease: ${{ github.event.inputs.is_prerelease }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
