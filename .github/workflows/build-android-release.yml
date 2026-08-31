@@ -4,11 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag (e.g. v1.0.4)'
+        description: 'Release tag (e.g. v1.0.4, blank for timestamp)'
         required: false
         default: ''
       release_title:
-        description: 'Release Title'
+        description: 'Release Title (e.g. Usque Android v1.0.4)'
+        required: false
+        default: ''
+      release_notes:
+        description: 'Custom Release Notes / Changelog (optional markdown)'
         required: false
         default: ''
       is_prerelease:
@@ -72,7 +76,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Prepare Release Artifacts
+      - name: Prepare Release Artifacts & Notes
         id: prepare_artifacts
         run: |
           # Generate version tag if not provided
@@ -94,6 +98,33 @@ jobs:
           echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
           echo "release_title=${TITLE}" >> $GITHUB_OUTPUT
 
+          # Prepare dynamic release notes body
+          NOTES_FILE="release-notes.md"
+          echo "## 🚀 Usque Android Release (${TAG})" > $NOTES_FILE
+          echo "" >> $NOTES_FILE
+
+          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
+          if [ -n "$CUSTOM_NOTES" ]; then
+            echo "### 📝 What's New:" >> $NOTES_FILE
+            echo "$CUSTOM_NOTES" >> $NOTES_FILE
+            echo "" >> $NOTES_FILE
+          fi
+
+          cat << 'EOF' >> $NOTES_FILE
+### ✨ Key Features:
+- ⚡ **Zero-JNI Kernel Packet Streaming** (`/dev/tun` direct I/O for speed & battery efficiency)
+- 🔒 **Cloudflare WARP / MASQUE protocol** with PMTU Discovery
+- 🌐 **HTTP/2 mode** (TCP transport option) & **QUIC (HTTP/3)**
+- 🛡️ **Customizable DNS** (Defaults to 1.1.1.1, supports AdGuard/custom resolvers)
+- ⚙️ **Custom SNI & Endpoints** (Censorship circumvention)
+- 📜 **Live In-App Log Viewer** with adjustable log levels
+- 🔔 **Ongoing Android Notification** with 1-tap **"Disconnect"** button
+EOF
+
+          echo "" >> $NOTES_FILE
+          echo "### 📦 Downloads:" >> $NOTES_FILE
+          echo "- [\`usque-android-${TAG}.apk\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/usque-android-${TAG}.apk)" >> $NOTES_FILE
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -105,20 +136,7 @@ jobs:
         with:
           tag_name: ${{ steps.prepare_artifacts.outputs.tag_name }}
           name: ${{ steps.prepare_artifacts.outputs.release_title }}
-          body: |
-            ## 🚀 Usque Android Release (${{ steps.prepare_artifacts.outputs.tag_name }})
-            
-            ### Included Features:
-            - **Cloudflare WARP / MASQUE protocol**
-            - **HTTP/2 mode** (TCP transport option)
-            - **Live In-App Log Viewer** (`📜 Logs` button)
-            - **Configurable Log Levels** (DEBUG, INFO, WARN, ERROR)
-            - **Custom SNI & Endpoints**
-            - **Customizable MTU (`-m`) & Keepalive Period (`-k`)**
-            - **Always Reconnect** support for stable VPN connections
-            
-            ### Downloads:
-            - [`usque-android-${{ steps.prepare_artifacts.outputs.tag_name }}.apk`](https://github.com/${{ github.repository }}/releases/download/${{ steps.prepare_artifacts.outputs.tag_name }}/usque-android-${{ steps.prepare_artifacts.outputs.tag_name }}.apk)
+          body_path: release-notes.md
           files: release-artifacts/*.apk
           prerelease: ${{ github.event.inputs.is_prerelease }}
           draft: false
