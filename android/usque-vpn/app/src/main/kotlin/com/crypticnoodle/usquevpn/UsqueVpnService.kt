@@ -66,7 +66,7 @@ class UsqueVpnService : VpnService() {
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(statusText: String = "Connected & Encrypted via Cloudflare WARP"): Notification {
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -92,7 +92,7 @@ class UsqueVpnService : VpnService() {
 
         return builder
             .setContentTitle("Usque VPN")
-            .setContentText("Connected & Encrypted via Cloudflare WARP")
+            .setContentText(statusText)
             .setSmallIcon(R.drawable.ic_vpn)
             .setContentIntent(pendingOpenApp)
             .setOngoing(true)
@@ -104,6 +104,11 @@ class UsqueVpnService : VpnService() {
                 ).build()
             )
             .build()
+    }
+
+    private fun updateNotification(statusText: String) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.notify(NOTIFICATION_ID, buildNotification(statusText))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -121,6 +126,17 @@ class UsqueVpnService : VpnService() {
             return START_STICKY
         }
 
+        // Immediately promote to foreground service to satisfy Android 8.0+ ANR timeout requirements
+        startForeground(NOTIFICATION_ID, buildNotification("Connecting to Cloudflare WARP..."))
+
+        Thread {
+            setupAndStartTunnel()
+        }.start()
+
+        return START_STICKY
+    }
+
+    private fun setupAndStartTunnel() {
         val configPath = "${filesDir.absolutePath}/config.json"
 
         // Check registration
@@ -129,8 +145,8 @@ class UsqueVpnService : VpnService() {
             val error = Usqueandroid.register(configPath, android.os.Build.MODEL)
             if (error.isNotEmpty()) {
                 Log.e(TAG, "Registration failed: $error")
-                stopSelf()
-                return START_NOT_STICKY
+                disconnect()
+                return
             }
             Log.i(TAG, "Registration successful")
         }
@@ -143,8 +159,8 @@ class UsqueVpnService : VpnService() {
 
         if (vpnIpv4.isEmpty()) {
             Log.e(TAG, "No IPv4 address assigned")
-            stopSelf()
-            return START_NOT_STICKY
+            disconnect()
+            return
         }
 
         // Create VPN interface
@@ -198,8 +214,8 @@ class UsqueVpnService : VpnService() {
 
             if (vpnInterface == null) {
                 Log.e(TAG, "Failed to establish VPN interface")
-                stopSelf()
-                return START_NOT_STICKY
+                disconnect()
+                return
             }
 
             val fd = vpnInterface!!.fd
@@ -209,8 +225,8 @@ class UsqueVpnService : VpnService() {
 
             isRunning = true
 
-            // Start foreground notification with Disconnect button
-            startForeground(NOTIFICATION_ID, buildNotification())
+            // Update foreground notification status
+            updateNotification("Connected & Encrypted via Cloudflare WARP")
 
             // Create packet flow for writing packets back to TUN
             val packetFlow = object : PacketFlow {
@@ -229,6 +245,7 @@ class UsqueVpnService : VpnService() {
             val callback = object : VpnStateCallback {
                 override fun onConnected() {
                     Log.i(TAG, "MASQUE tunnel connected to Cloudflare!")
+                    updateNotification("Connected & Encrypted via Cloudflare WARP")
                 }
 
                 override fun onDisconnected(reason: String?) {
@@ -248,23 +265,16 @@ class UsqueVpnService : VpnService() {
             val tunnelError = Usqueandroid.startTunnel(configPath, fd.toLong(), effectiveMtu.toLong(), packetFlow, callback)
             if (tunnelError.isNotEmpty()) {
                 Log.e(TAG, "Failed to start tunnel: $tunnelError")
-                isRunning = false
-                vpnInterface?.close()
-                stopForeground(true)
-                stopSelf()
-                return START_NOT_STICKY
+                disconnect()
+                return
             }
 
             Log.i(TAG, "VPN Service started successfully!")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create VPN interface", e)
-            stopForeground(true)
-            stopSelf()
-            return START_NOT_STICKY
+            disconnect()
         }
-
-        return START_STICKY
     }
 
     /**
