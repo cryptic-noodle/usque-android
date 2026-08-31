@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#1a1a2e">
+
+    <!-- Header bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📜 Usque Engine Logs"
+            android:textColor="#ffffff"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_copy_logs"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Copy"
+            android:textSize="12sp"
+            android:textColor="#ffffff"
+            android:background="@drawable/button_secondary_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btn_clear_logs"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Clear"
+            android:textSize="12sp"
+            android:textColor="#ff6b6b"
+            android:background="@drawable/button_secondary_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+    </LinearLayout>
+
+    <!-- Scrollable Monospace Logs Area -->
+    <ScrollView
+        android:id="@+id/logs_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="320dp"
+        android:background="#0f0f1d"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/logs_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No logs yet..."
+            android:textColor="#39ff14"
+            android:textSize="11sp"
+            android:typeface="monospace"
+            android:textIsSelectable="true"
+            android:lineSpacingMultiplier="1.2" />
+    </ScrollView>
+
+</LinearLayout>

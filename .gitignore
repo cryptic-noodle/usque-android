@@ -30,3 +30,19 @@ usque
 usque.exe
 dist/.vscode/
 .vscode/
+
+# Android build artifacts
+android/*.aar
+android/*-sources.jar
+android/usque-vpn/.gradle/
+android/usque-vpn/.idea/
+android/usque-vpn/build/
+android/usque-vpn/*/build/
+android/usque-vpn/app/build/
+android/usque-vpn/app/libs/*.aar
+android/usque-vpn/local.properties
+android/usque-vpn/*.apk
+android/usque-vpn/gradle/wrapper/gradle-wrapper.jar
+*.apk
+*.aab
+

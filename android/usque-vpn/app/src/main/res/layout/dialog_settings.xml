@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Mode Selection (HTTP/2 vs QUIC) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Protocol Mode"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <CheckBox
+            android:id="@+id/http2_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Use HTTP/2 (TCP) instead of QUIC (HTTP/3)"
+            android:textColor="#cccccc"
+            android:textSize="13sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- SNI Input -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SNI (Server Name Indication)"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/sni_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="www.visa.cn"
+            android:inputType="textUri"
+            android:textColor="#ffffff"
+            android:textColorHint="#666666"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Endpoint Input -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Custom Endpoint (host:port)"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/endpoint_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="162.159.198.1:443"
+            android:inputType="textUri"
+            android:textColor="#ffffff"
+            android:textColorHint="#666666"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Leave empty for Cloudflare default. Formats: 162.159.198.1:443 or [2606:4700:103::1]:443"
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Keepalive & MTU in a row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Keepalive (s)"
+                    android:textColor="#ffffff"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+
+                <EditText
+                    android:id="@+id/keepalive_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="30"
+                    android:inputType="number"
+                    android:textColor="#ffffff"
+                    android:textColorHint="#666666" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MTU"
+                    android:textColor="#ffffff"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+
+                <EditText
+                    android:id="@+id/mtu_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="1280"
+                    android:inputType="number"
+                    android:textColor="#ffffff"
+                    android:textColorHint="#666666" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Always Reconnect Checkbox -->
+        <CheckBox
+            android:id="@+id/always_reconnect_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Always maintain &amp; reconnect tunnel"
+            android:textColor="#cccccc"
+            android:textSize="13sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Log Level Selector -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Log Level"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <Spinner
+            android:id="@+id/loglevel_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp" />
+
+    </LinearLayout>
+</ScrollView>
