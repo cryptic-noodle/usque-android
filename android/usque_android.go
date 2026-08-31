@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -715,30 +716,39 @@ func ResetConnectionOptions() {
 	log.Println("Connection options reset to defaults")
 }
 
-// ============================================
-// File Descriptor based helper
-// ============================================
-
-// StartTunnelWithFd starts the tunnel by reading/writing directly to the TUN fd.
-func StartTunnelWithFd(configPath string, tunFd int, callback VpnStateCallback) string {
-	return StartTunnel(configPath, tunFd, customMTU, nil, callback)
-}
-
-// fdReadWriter wraps a file descriptor for io.ReadWriter
-type fdReadWriter struct {
-	file *os.File
-}
-
-func (f *fdReadWriter) Read(p []byte) (n int, err error) {
-	return f.file.Read(p)
-}
-
-func (f *fdReadWriter) Write(p []byte) (n int, err error) {
-	return f.file.Write(p)
-}
-
-// CreateTunReadWriter creates an io.ReadWriter from a TUN file descriptor
-func CreateTunReadWriter(fd int) io.ReadWriter {
-	file := os.NewFile(uintptr(fd), "tun")
-	return &fdReadWriter{file: file}
+// CheckConnectivity sends a fast probe to verify connectivity through the tunnel.
+// Returns true if reachable, false if blocked/unreachable.
+func CheckConnectivity(timeoutSec int) bool {
+	if timeoutSec <= 0 {
+		timeoutSec = 3
+	}
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSec) * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+	// Test Cloudflare trace endpoint
+	req, err := http.NewRequest("GET", "https://1.1.1.1/cdn-cgi/trace", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", "Usque-Android-Probe")
+	resp, err := client.Do(req)
+	if err != nil {
+		// Fallback to HTTP generate_204
+		req2, err2 := http.NewRequest("GET", "http://cp.cloudflare.com/generate_204", nil)
+		if err2 != nil {
+			return false
+		}
+		req2.Header.Set("User-Agent", "Usque-Android-Probe")
+		resp2, err2 := client.Do(req2)
+		if err2 != nil {
+			return false
+		}
+		defer resp2.Body.Close()
+		return resp2.StatusCode == 200 || resp2.StatusCode == 204
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
 }

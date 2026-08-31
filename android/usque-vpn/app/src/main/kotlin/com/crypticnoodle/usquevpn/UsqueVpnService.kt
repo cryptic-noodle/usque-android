@@ -292,17 +292,20 @@ class UsqueVpnService : VpnService() {
     /**
      * Disconnect the VPN - can be called from anywhere
      */
+    @Synchronized
     fun disconnect() {
         Log.i(TAG, "disconnect() called")
         
         val wasRunning = isRunning
         isRunning = false
-        if (wasRunning) {
-            notifyState(false)
-        }
+        notifyState(false)
 
         // Stop foreground notification
-        stopForeground(true)
+        try {
+            stopForeground(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping foreground", e)
+        }
 
         // Stop the Go tunnel first
         try {

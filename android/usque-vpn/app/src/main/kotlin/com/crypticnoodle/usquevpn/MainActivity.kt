@@ -96,7 +96,7 @@ class MainActivity : Activity() {
         })
 
         connectButton.setOnClickListener {
-            if (UsqueVpnService.isRunning) {
+            if (UsqueVpnService.isRunning || isConnecting) {
                 stopVpn()
             } else {
                 startVpn()
@@ -391,29 +391,18 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // If device has no underlying network at all, don't show the UDP/QUIC blocked tip
+                // If device has no underlying physical network at all, do not show false-alarm warning
                 if (!hasUnderlyingNetwork) {
                     return@Thread
                 }
 
-                // Test connection through the tunnel
-                val url = java.net.URL("http://1.1.1.1/cdn-cgi/trace")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 3500
-                conn.readTimeout = 3500
-                conn.instanceFollowRedirects = false
-                conn.requestMethod = "GET"
-                
-                val responseCode = conn.responseCode
-                conn.disconnect()
-
-                if (responseCode != 200) {
+                // Test connection through the Go tunnel engine
+                val isReachable = Usqueandroid.checkConnectivity(4)
+                if (!isReachable && UsqueVpnService.isRunning) {
                     showConnectivityWarning()
                 }
             } catch (e: Exception) {
-                if (UsqueVpnService.isRunning) {
-                    showConnectivityWarning()
-                }
+                // Ignore background check exceptions
             }
         }.start()
     }
