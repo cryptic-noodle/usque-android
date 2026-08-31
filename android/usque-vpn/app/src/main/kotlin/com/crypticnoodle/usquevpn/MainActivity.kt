@@ -1,4 +1,4 @@
-package com.abobo.usquevpn
+package com.crypticnoodle.usquevpn
 
 import android.app.Activity
 import android.app.AlertDialog

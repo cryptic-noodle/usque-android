@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.abobo.usquevpn"
+    namespace = "com.crypticnoodle.usquevpn"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.abobo.usquevpn"
+        applicationId = "com.crypticnoodle.usquevpn"
         minSdk = 24
         targetSdk = 34
         versionCode = 3

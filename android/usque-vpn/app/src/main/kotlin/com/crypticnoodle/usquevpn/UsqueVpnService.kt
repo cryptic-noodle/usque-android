@@ -1,4 +1,4 @@
-package com.abobo.usquevpn
+package com.crypticnoodle.usquevpn
 
 import android.content.Intent
 import android.net.VpnService
@@ -21,7 +21,7 @@ class UsqueVpnService : VpnService() {
 
     companion object {
         private const val TAG = "UsqueVpnService"
-        const val ACTION_DISCONNECT = "com.abobo.usquevpn.DISCONNECT"
+        const val ACTION_DISCONNECT = "com.crypticnoodle.usquevpn.DISCONNECT"
         
         var isRunning = false
             private set
