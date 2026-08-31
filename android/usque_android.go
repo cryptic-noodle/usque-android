@@ -181,12 +181,12 @@ var state = &tunnelState{}
 
 // Custom connection options
 var (
-	customSNI            = "www.visa.cn" // Default SNI for censorship circumvention
-	customEndpoint       = ""            // Custom endpoint with port, e.g. "162.159.198.2:443" or "[2606:4700:103::]:1701"
-	customUseHTTP2       = false         // HTTP/2 mode (default false = HTTP/3 / QUIC)
-	customKeepaliveSec   = 30            // Keepalive period in seconds (default 30)
-	customMTU            = 1280          // MTU size (default 1280)
-	customAlwaysReconnect = true         // Always reconnect continuously (default true)
+	customSNI            = "api.cloudflare.com" // Default SNI
+	customEndpoint       = ""                   // Custom endpoint with port, e.g. "162.159.198.2:443" or "[2606:4700:103::]:1701"
+	customUseHTTP2       = false                // HTTP/2 mode (default false = HTTP/3 / QUIC)
+	customKeepaliveSec   = 30                   // Keepalive period in seconds (default 30)
+	customMTU            = 1280                 // MTU size (default 1280)
+	customAlwaysReconnect = true                // Always reconnect continuously (default true)
 )
 
 // Register creates a new Cloudflare WARP account and saves the configuration.
@@ -649,7 +649,7 @@ func GetDefaultEndpoint(configPath string) string {
 
 // ResetConnectionOptions resets all connection options to defaults
 func ResetConnectionOptions() {
-	customSNI = "www.visa.cn"
+	customSNI = "api.cloudflare.com"
 	customEndpoint = ""
 	customUseHTTP2 = false
 	customKeepaliveSec = 30

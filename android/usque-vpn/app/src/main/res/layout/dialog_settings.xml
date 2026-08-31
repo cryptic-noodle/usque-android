@@ -42,7 +42,7 @@
             android:id="@+id/sni_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="www.visa.cn"
+            android:hint="api.cloudflare.com"
             android:inputType="textUri"
             android:textColor="#ffffff"
             android:textColorHint="#666666"

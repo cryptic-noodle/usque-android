@@ -89,7 +89,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadSavedSettings() {
-        val savedSni = prefs.getString(KEY_SNI, "www.visa.cn") ?: "www.visa.cn"
+        val savedSni = prefs.getString(KEY_SNI, "api.cloudflare.com") ?: "api.cloudflare.com"
         Usqueandroid.setSNI(savedSni)
 
         val savedEndpoint = prefs.getString(KEY_ENDPOINT, "") ?: ""
@@ -324,7 +324,7 @@ class MainActivity : Activity() {
         modeText.text = if (isHttp2) "Mode: HTTP/2 (TCP)" else "Mode: HTTP/3 (QUIC)"
 
         // SNI
-        val currentSni = prefs.getString(KEY_SNI, Usqueandroid.getSNI()) ?: "www.visa.cn"
+        val currentSni = prefs.getString(KEY_SNI, Usqueandroid.getSNI()) ?: "api.cloudflare.com"
         sniText.text = "SNI: $currentSni"
 
         // Endpoint
