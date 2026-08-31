@@ -721,10 +721,10 @@ var (
 	egressMu       sync.Mutex
 )
 
-// FetchEgressIP queries https://1.1.1.1/cdn-cgi/trace and extracts the public IP address.
+// FetchEgressIP queries https://www.cloudflare.com/cdn-cgi/trace and extracts the public IP address.
 func FetchEgressIP(timeoutSec int) string {
 	if timeoutSec <= 0 {
-		timeoutSec = 3
+		timeoutSec = 4
 	}
 	client := &http.Client{
 		Timeout: time.Duration(timeoutSec) * time.Second,
@@ -732,14 +732,23 @@ func FetchEgressIP(timeoutSec int) string {
 			DisableKeepAlives: true,
 		},
 	}
-	req, err := http.NewRequest("GET", "https://1.1.1.1/cdn-cgi/trace", nil)
+	req, err := http.NewRequest("GET", "https://www.cloudflare.com/cdn-cgi/trace", nil)
 	if err != nil {
 		return ""
 	}
-	req.Header.Set("User-Agent", "Usque-Android-Probe")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:109.0) Gecko/109.0 Firefox/119.0")
 	resp, err := client.Do(req)
 	if err != nil {
-		return ""
+		// Fallback to IP endpoint if DNS isn't resolved yet
+		req2, err2 := http.NewRequest("GET", "https://1.1.1.1/cdn-cgi/trace", nil)
+		if err2 != nil {
+			return ""
+		}
+		req2.Header.Set("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:109.0) Gecko/109.0 Firefox/119.0")
+		resp, err = client.Do(req2)
+		if err != nil {
+			return ""
+		}
 	}
 	defer resp.Body.Close()
 
