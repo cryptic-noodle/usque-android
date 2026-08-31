@@ -25,6 +25,10 @@ import java.io.FileOutputStream
  */
 class UsqueVpnService : VpnService() {
 
+    interface ConnectionStateListener {
+        fun onStateChanged(connected: Boolean)
+    }
+
     companion object {
         private const val TAG = "UsqueVpnService"
         const val ACTION_DISCONNECT = "com.crypticnoodle.usquevpn.DISCONNECT"
@@ -36,7 +40,16 @@ class UsqueVpnService : VpnService() {
             
         // Reference to the running service instance for direct stop
         private var instance: UsqueVpnService? = null
+        private var stateListener: ConnectionStateListener? = null
         
+        fun setStateListener(listener: ConnectionStateListener?) {
+            stateListener = listener
+        }
+
+        private fun notifyState(connected: Boolean) {
+            stateListener?.onStateChanged(connected)
+        }
+
         fun stop() {
             Log.i(TAG, "Static stop() called")
             instance?.disconnect()
@@ -246,10 +259,12 @@ class UsqueVpnService : VpnService() {
                 override fun onConnected() {
                     Log.i(TAG, "MASQUE tunnel connected to Cloudflare!")
                     updateNotification("Connected & Encrypted via Cloudflare WARP")
+                    notifyState(true)
                 }
 
                 override fun onDisconnected(reason: String?) {
                     Log.w(TAG, "MASQUE tunnel disconnected: $reason")
+                    notifyState(false)
                     // If the tunnel stopped and is not running, cleanup
                     if (!Usqueandroid.isRunning()) {
                         disconnect()
@@ -270,6 +285,7 @@ class UsqueVpnService : VpnService() {
             }
 
             Log.i(TAG, "VPN Service started successfully!")
+            notifyState(true)
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create VPN interface", e)
@@ -283,12 +299,11 @@ class UsqueVpnService : VpnService() {
     fun disconnect() {
         Log.i(TAG, "disconnect() called")
         
-        if (!isRunning) {
-            Log.w(TAG, "VPN not running, nothing to disconnect")
-            return
-        }
-        
+        val wasRunning = isRunning
         isRunning = false
+        if (wasRunning) {
+            notifyState(false)
+        }
 
         // Stop foreground notification
         stopForeground(true)

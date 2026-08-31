@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.*
 import usqueandroid.LogListener
 import usqueandroid.Usqueandroid
@@ -41,6 +42,7 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var connectButton: Button
     private lateinit var ipInfoText: TextView
+    private lateinit var tipText: TextView
     private lateinit var settingsButton: Button
     private lateinit var logsButton: Button
     private lateinit var modeText: TextView
@@ -50,6 +52,7 @@ class MainActivity : Activity() {
     private lateinit var tuningText: TextView
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var isConnecting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +63,7 @@ class MainActivity : Activity() {
         statusText = findViewById(R.id.status_text)
         connectButton = findViewById(R.id.connect_button)
         ipInfoText = findViewById(R.id.ip_info_text)
+        tipText = findViewById(R.id.tip_text)
         settingsButton = findViewById(R.id.settings_button)
         logsButton = findViewById(R.id.logs_button)
         modeText = findViewById(R.id.mode_text)
@@ -73,6 +77,21 @@ class MainActivity : Activity() {
 
         // Request Notification permission on Android 13+ (API 33+)
         requestNotificationPermissionIfNeeded()
+
+        // Listen for real-time VPN connection state changes
+        UsqueVpnService.setStateListener(object : UsqueVpnService.ConnectionStateListener {
+            override fun onStateChanged(connected: Boolean) {
+                mainHandler.post {
+                    isConnecting = false
+                    updateUI()
+                    if (connected) {
+                        performPostConnectionCheck()
+                    } else {
+                        tipText.visibility = View.GONE
+                    }
+                }
+            }
+        })
 
         connectButton.setOnClickListener {
             if (UsqueVpnService.isRunning) {
@@ -99,6 +118,11 @@ class MainActivity : Activity() {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_CODE)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        UsqueVpnService.setStateListener(null)
     }
 
     override fun onResume() {
@@ -288,6 +312,13 @@ class MainActivity : Activity() {
     }
 
     private fun startVpn() {
+        isConnecting = true
+        statusText.text = "Connecting..."
+        statusText.setTextColor(getColor(android.R.color.holo_orange_dark))
+        connectButton.text = "Connecting..."
+        settingsButton.isEnabled = false
+        tipText.visibility = View.GONE
+
         val intent = VpnService.prepare(this)
         if (intent != null) {
             startActivityForResult(intent, VPN_REQUEST_CODE)
@@ -297,15 +328,15 @@ class MainActivity : Activity() {
     }
 
     private fun stopVpn() {
+        isConnecting = false
+        tipText.visibility = View.GONE
         UsqueVpnService.stop()
 
         val intent = Intent(this, UsqueVpnService::class.java)
         intent.action = UsqueVpnService.ACTION_DISCONNECT
         startService(intent)
 
-        connectButton.postDelayed({
-            updateUI()
-        }, 1000)
+        updateUI()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -314,7 +345,9 @@ class MainActivity : Activity() {
             if (resultCode == RESULT_OK) {
                 onVpnPermissionGranted()
             } else {
+                isConnecting = false
                 Toast.makeText(this, "VPN permission denied", Toast.LENGTH_SHORT).show()
+                updateUI()
             }
         }
     }
@@ -322,10 +355,47 @@ class MainActivity : Activity() {
     private fun onVpnPermissionGranted() {
         val intent = Intent(this, UsqueVpnService::class.java)
         startService(intent)
+    }
 
-        connectButton.postDelayed({
-            updateUI()
-        }, 1500)
+    /**
+     * Lightweight one-time connectivity check after connecting.
+     * Uses Cloudflare's /cdn-cgi/trace endpoint through the tunnel (zero battery overhead).
+     */
+    private fun performPostConnectionCheck() {
+        Thread {
+            try {
+                val url = java.net.URL("http://1.1.1.1/cdn-cgi/trace")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.instanceFollowRedirects = false
+                conn.requestMethod = "GET"
+                
+                val responseCode = conn.responseCode
+                conn.disconnect()
+
+                if (responseCode != 200) {
+                    showConnectivityWarning()
+                }
+            } catch (e: Exception) {
+                // If ping fails while in QUIC mode, warn user to switch to HTTP/2
+                showConnectivityWarning()
+            }
+        }.start()
+    }
+
+    private fun showConnectivityWarning() {
+        mainHandler.post {
+            if (UsqueVpnService.isRunning) {
+                val isHttp2 = prefs.getBoolean(KEY_HTTP2, false)
+                if (!isHttp2) {
+                    tipText.text = "⚠️ No internet access detected. UDP / QUIC may be blocked by your network. Open Settings and switch to HTTP/2 (TCP) mode."
+                } else {
+                    tipText.text = "⚠️ No internet access detected. Check your network connection or custom endpoint settings."
+                }
+                tipText.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun updateUI() {
@@ -336,19 +406,26 @@ class MainActivity : Activity() {
             statusText.setTextColor(getColor(android.R.color.holo_green_dark))
             connectButton.text = "Disconnect"
             settingsButton.isEnabled = false
+        } else if (isConnecting) {
+            statusText.text = "Connecting..."
+            statusText.setTextColor(getColor(android.R.color.holo_orange_dark))
+            connectButton.text = "Connecting..."
+            settingsButton.isEnabled = false
         } else {
             statusText.text = "Disconnected"
             statusText.setTextColor(getColor(android.R.color.holo_red_dark))
             connectButton.text = "Connect"
             settingsButton.isEnabled = true
+            tipText.visibility = View.GONE
         }
 
+        // Display Cloudflare Assigned Internal IPs
         if (Usqueandroid.isRegistered(configPath)) {
-            val ipv4 = Usqueandroid.getAssignedIPv4(configPath)
-            val ipv6 = Usqueandroid.getAssignedIPv6(configPath)
+            val ipv4 = Usqueandroid.getAssignedIPv4(configPath).ifEmpty { "172.16.0.2" }
+            val ipv6 = Usqueandroid.getAssignedIPv6(configPath).ifEmpty { "2606:4700:110:8::" }
             ipInfoText.text = "IPv4: $ipv4\nIPv6: $ipv6"
         } else {
-            ipInfoText.text = "Not registered"
+            ipInfoText.text = "Not registered (Auto-registers on connect)"
         }
 
         // Protocol Mode
