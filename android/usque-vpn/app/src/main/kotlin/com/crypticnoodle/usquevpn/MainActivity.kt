@@ -396,9 +396,13 @@ class MainActivity : Activity() {
                     return@Thread
                 }
 
-                // Test connection through the Go tunnel engine
+                // Test connection through the Go tunnel engine and fetch real egress IP
                 val isReachable = Usqueandroid.checkConnectivity(4)
-                if (!isReachable && UsqueVpnService.isRunning) {
+                if (isReachable) {
+                    mainHandler.post {
+                        updateUI()
+                    }
+                } else if (UsqueVpnService.isRunning) {
                     showConnectivityWarning()
                 }
             } catch (e: Exception) {
@@ -442,11 +446,20 @@ class MainActivity : Activity() {
             tipText.visibility = View.GONE
         }
 
-        // Display Cloudflare Assigned Internal IPs
-        if (Usqueandroid.isRegistered(configPath)) {
-            val ipv4 = Usqueandroid.getAssignedIPv4(configPath).ifEmpty { "172.16.0.2" }
-            val ipv6 = Usqueandroid.getAssignedIPv6(configPath).ifEmpty { "2606:4700:110:8::" }
-            ipInfoText.text = "IPv4: $ipv4\nIPv6: $ipv6"
+        // Display Public IP and WARP Assigned Internal IPs
+        val publicIp = Usqueandroid.getCachedEgressIP()
+        if (UsqueVpnService.isRunning && publicIp.isNotEmpty()) {
+            val ipv4 = Usqueandroid.getAssignedIPv4(configPath)
+            val internalStr = if (ipv4.isNotEmpty()) " (WARP: $ipv4)" else ""
+            ipInfoText.text = "Public IP: $publicIp$internalStr"
+        } else if (Usqueandroid.isRegistered(configPath)) {
+            val ipv4 = Usqueandroid.getAssignedIPv4(configPath)
+            val ipv6 = Usqueandroid.getAssignedIPv6(configPath)
+            if (ipv4.isNotEmpty() || ipv6.isNotEmpty()) {
+                ipInfoText.text = "WARP IPv4: $ipv4\nWARP IPv6: $ipv6"
+            } else {
+                ipInfoText.text = "WARP Registered (Connecting...)"
+            }
         } else {
             ipInfoText.text = "Not registered (Auto-registers on connect)"
         }

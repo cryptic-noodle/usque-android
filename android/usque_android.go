@@ -716,9 +716,13 @@ func ResetConnectionOptions() {
 	log.Println("Connection options reset to defaults")
 }
 
-// CheckConnectivity sends a fast probe to verify connectivity through the tunnel.
-// Returns true if reachable, false if blocked/unreachable.
-func CheckConnectivity(timeoutSec int) bool {
+var (
+	cachedEgressIP string
+	egressMu       sync.Mutex
+)
+
+// FetchEgressIP queries https://1.1.1.1/cdn-cgi/trace and extracts the public IP address.
+func FetchEgressIP(timeoutSec int) string {
 	if timeoutSec <= 0 {
 		timeoutSec = 3
 	}
@@ -728,27 +732,72 @@ func CheckConnectivity(timeoutSec int) bool {
 			DisableKeepAlives: true,
 		},
 	}
-	// Test Cloudflare trace endpoint
 	req, err := http.NewRequest("GET", "https://1.1.1.1/cdn-cgi/trace", nil)
 	if err != nil {
-		return false
+		return ""
 	}
 	req.Header.Set("User-Agent", "Usque-Android-Probe")
 	resp, err := client.Do(req)
 	if err != nil {
-		// Fallback to HTTP generate_204
-		req2, err2 := http.NewRequest("GET", "http://cp.cloudflare.com/generate_204", nil)
-		if err2 != nil {
-			return false
-		}
-		req2.Header.Set("User-Agent", "Usque-Android-Probe")
-		resp2, err2 := client.Do(req2)
-		if err2 != nil {
-			return false
-		}
-		defer resp2.Body.Close()
-		return resp2.StatusCode == 200 || resp2.StatusCode == 204
+		return ""
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == 200
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(body), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ip=") {
+			ip := strings.TrimPrefix(line, "ip=")
+			egressMu.Lock()
+			cachedEgressIP = ip
+			egressMu.Unlock()
+			return ip
+		}
+	}
+	return ""
+}
+
+// GetCachedEgressIP returns the last fetched public egress IP.
+func GetCachedEgressIP() string {
+	egressMu.Lock()
+	defer egressMu.Unlock()
+	return cachedEgressIP
+}
+
+// ClearCachedEgressIP resets the cached egress IP.
+func ClearCachedEgressIP() {
+	egressMu.Lock()
+	defer egressMu.Unlock()
+	cachedEgressIP = ""
+}
+
+// CheckConnectivity sends a fast probe to verify connectivity through the tunnel.
+// Returns true if reachable, false if blocked/unreachable.
+func CheckConnectivity(timeoutSec int) bool {
+	ip := FetchEgressIP(timeoutSec)
+	if ip != "" {
+		return true
+	}
+	// Fallback to HTTP generate_204
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSec) * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+	req2, err2 := http.NewRequest("GET", "http://cp.cloudflare.com/generate_204", nil)
+	if err2 != nil {
+		return false
+	}
+	req2.Header.Set("User-Agent", "Usque-Android-Probe")
+	resp2, err2 := client.Do(req2)
+	if err2 != nil {
+		return false
+	}
+	defer resp2.Body.Close()
+	return resp2.StatusCode == 200 || resp2.StatusCode == 204
 }
