@@ -265,7 +265,6 @@ type AndroidTunDevice struct {
 	fd       int
 	file     *os.File
 	mtu      int
-	inputCh  chan []byte
 	outputFn PacketFlow
 }
 
@@ -280,7 +279,6 @@ func newAndroidTunDevice(fd int, mtu int, packetFlow PacketFlow) (*AndroidTunDev
 		fd:       fd,
 		file:     file,
 		mtu:      mtu,
-		inputCh:  make(chan []byte, 256),
 		outputFn: packetFlow,
 	}, nil
 }
