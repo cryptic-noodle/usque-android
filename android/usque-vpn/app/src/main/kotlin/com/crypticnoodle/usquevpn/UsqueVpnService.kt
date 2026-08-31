@@ -1,7 +1,13 @@
 package com.crypticnoodle.usquevpn
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import usqueandroid.PacketFlow
@@ -15,13 +21,15 @@ import java.io.FileOutputStream
  * The service works by:
  * 1. Creating a TUN interface that captures all device traffic
  * 2. Passing the TUN file descriptor to the Go library
- * 3. Go library handles all traffic forwarding through MASQUE/QUIC or HTTP/2 to Cloudflare
+ * 3. Go library handles all traffic forwarding directly via OS kernel fd for optimal battery/speed
  */
 class UsqueVpnService : VpnService() {
 
     companion object {
         private const val TAG = "UsqueVpnService"
         const val ACTION_DISCONNECT = "com.crypticnoodle.usquevpn.DISCONNECT"
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "usque_vpn_status_channel"
         
         var isRunning = false
             private set
@@ -41,6 +49,61 @@ class UsqueVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Usque VPN Status"
+            val descriptionText = "Shows active VPN connection status and controls"
+            val importance = NotificationManager.IMPORTANCE_LOW // Low importance = No intrusive audio alerts, battery efficient
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+                setShowBadge(false)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(): Notification {
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingOpenApp = PendingIntent.getActivity(
+            this, 0, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val disconnectIntent = Intent(this, UsqueVpnService::class.java).apply {
+            action = ACTION_DISCONNECT
+        }
+        val pendingDisconnect = PendingIntent.getService(
+            this, 1, disconnectIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+
+        return builder
+            .setContentTitle("Usque VPN")
+            .setContentText("Connected & Encrypted via Cloudflare WARP")
+            .setSmallIcon(R.drawable.ic_vpn)
+            .setContentIntent(pendingOpenApp)
+            .setOngoing(true)
+            .addAction(
+                Notification.Action.Builder(
+                    null,
+                    "Disconnect",
+                    pendingDisconnect
+                ).build()
+            )
+            .build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -134,6 +197,9 @@ class UsqueVpnService : VpnService() {
 
             isRunning = true
 
+            // Start foreground notification with Disconnect button
+            startForeground(NOTIFICATION_ID, buildNotification())
+
             // Create packet flow for writing packets back to TUN
             val packetFlow = object : PacketFlow {
                 override fun writePacket(data: ByteArray?) {
@@ -172,6 +238,7 @@ class UsqueVpnService : VpnService() {
                 Log.e(TAG, "Failed to start tunnel: $tunnelError")
                 isRunning = false
                 vpnInterface?.close()
+                stopForeground(true)
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -180,6 +247,7 @@ class UsqueVpnService : VpnService() {
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create VPN interface", e)
+            stopForeground(true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -199,6 +267,9 @@ class UsqueVpnService : VpnService() {
         }
         
         isRunning = false
+
+        // Stop foreground notification
+        stopForeground(true)
 
         // Stop the Go tunnel first
         try {
@@ -249,3 +320,4 @@ class UsqueVpnService : VpnService() {
         disconnect()
     }
 }
+

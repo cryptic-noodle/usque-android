@@ -294,14 +294,15 @@ func (d *AndroidTunDevice) ReadPacket(buf []byte) (int, error) {
 }
 
 func (d *AndroidTunDevice) WritePacket(pkt []byte) error {
-	if d.outputFn != nil {
-		// Use the callback to write to Android TUN
-		d.outputFn.WritePacket(pkt)
-		return nil
+	// Direct OS file descriptor write (Zero JNI bridge overhead, eliminates memory copying and GC pauses)
+	if d.file != nil {
+		_, err := d.file.Write(pkt)
+		return err
 	}
-	// Fallback to direct write
-	_, err := d.file.Write(pkt)
-	return err
+	if d.outputFn != nil {
+		d.outputFn.WritePacket(pkt)
+	}
+	return nil
 }
 
 func (d *AndroidTunDevice) Close() error {
